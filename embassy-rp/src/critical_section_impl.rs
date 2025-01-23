@@ -1,4 +1,7 @@
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::{
+    arch::asm,
+    sync::atomic::{AtomicU8, Ordering},
+};
 
 use crate::pac;
 
@@ -21,24 +24,26 @@ static LOCK_OWNER: AtomicU8 = AtomicU8::new(LOCK_UNOWNED);
 /// `critical_section` provides a token for communicating between `acquire` and `release` so we use that.
 /// If we're the outermost call to `critical_section` we use the values 0 and 1 to indicate we should release the spinlock and set the interrupts back to disabled and enabled, respectively.
 /// The value 2 indicates that we aren't the outermost call, and should not release the spinlock or re-enable interrupts in `release`
-const LOCK_ALREADY_OWNED: u8 = 2;
+const LOCK_ALREADY_OWNED: u64 = 1 << 32;
 
 unsafe impl critical_section::Impl for RpSpinlockCs {
-    unsafe fn acquire() -> u8 {
+    unsafe fn acquire() -> u64 {
         RpSpinlockCs::acquire()
     }
 
-    unsafe fn release(token: u8) {
+    unsafe fn release(token: u64) {
         RpSpinlockCs::release(token);
     }
 }
 
 impl RpSpinlockCs {
-    unsafe fn acquire() -> u8 {
+    unsafe fn acquire() -> u64 {
         // Store the initial interrupt state and current core id in stack variables
-        let interrupts_active = cortex_m::register::primask::read().is_active();
+        let primask: u32;
+        unsafe { asm!("mrs {}, PRIMASK", out(reg) primask, options(nomem, nostack, preserves_flags)) }
         // We reserved 0 as our `LOCK_UNOWNED` value, so add 1 to core_id so we get 1 for core0, 2 for core1.
         let core = pac::SIO.cpuid().read() as u8 + 1;
+
         // Do we already own the spinlock?
         if LOCK_OWNER.load(Ordering::Acquire) == core {
             // We already own the lock, so we must have called acquire within a critical_section.
@@ -62,17 +67,17 @@ impl RpSpinlockCs {
                     break;
                 }
                 // We didn't get the lock, enable interrupts if they were enabled before we started
-                if interrupts_active {
+                if primask & 0x1 == 0 {
                     cortex_m::interrupt::enable();
                 }
             }
             // If we broke out of the loop we have just acquired the lock
             // As the outermost loop, we want to return the interrupt status to restore later
-            interrupts_active as _
+            primask as _
         }
     }
 
-    unsafe fn release(token: u8) {
+    unsafe fn release(token: u64) {
         // Did we already own the lock at the start of the `critical_section`?
         if token != LOCK_ALREADY_OWNED {
             // No, it wasn't owned at the start of this `critical_section`, so this core no longer owns it.
@@ -85,9 +90,8 @@ impl RpSpinlockCs {
             // Re-enable interrupts if they were enabled when we first called acquire()
             // We only do this on the outermost `critical_section` to ensure interrupts stay disabled
             // for the whole time that we have the lock
-            if token != 0 {
-                cortex_m::interrupt::enable();
-            }
+            let primask = token as u32;
+            unsafe { asm!("msr PRIMASK, {}", in(reg) primask, options(nomem, nostack, preserves_flags)) }
         }
     }
 }
