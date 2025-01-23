@@ -344,11 +344,11 @@ where
     }
 
     fn try_receive_with_context(&mut self, cx: Option<&mut Context<'_>>) -> Result<T, TryReceiveError> {
-        if self.queue.len() == self.queue.capacity() {
-            self.senders_waker.wake();
-        }
-
         if let Some(message) = self.queue.pop() {
+            if self.queue.len() == self.queue.capacity() - 1 {
+                self.senders_waker.wake();
+            }
+
             Ok(message)
         } else {
             if let Some(cx) = cx {
@@ -359,11 +359,11 @@ where
     }
 
     fn poll_receive(&mut self, cx: &mut Context<'_>) -> Poll<T> {
-        if self.queue.len() == self.queue.capacity() {
-            self.senders_waker.wake();
-        }
-
         if let Some(message) = self.queue.pop() {
+            if self.queue.len() == self.queue.capacity() - 1 {
+                self.senders_waker.wake();
+            }
+
             Poll::Ready(message)
         } else {
             self.receiver_waker.register(cx.waker());
