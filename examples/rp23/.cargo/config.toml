@@ -1,10 +1,16 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-#runner = "probe-rs run --chip RP2040"
+
+# For my testing I've been using a probe-rs fork that has support for the RP2350
+# to get defmt support.
+#
+# cargo install --git https://github.com/konkers/probe-rs --branch wip/2350 probe-rs-tools --locked
+runner = "probe-rs run --chip RP235x --protocol swd"
+
 #runner = "elf2uf2-rs -d"
-runner = "picotool load -u -v -x -t elf"
+#runner = "picotool load -u -v -x -t elf"
 
 [build]
 target = "thumbv8m.main-none-eabihf"
 
 [env]
-DEFMT_LOG = "debug"
+DEFMT_LOG = "trace"
