@@ -55,7 +55,7 @@ use crate::{gpio, install_stack_guard, interrupt, pac};
 
 const PAUSE_TOKEN: u32 = 0xDEADBEEF;
 const RESUME_TOKEN: u32 = !0xDEADBEEF;
-static IS_CORE1_INIT: AtomicBool = AtomicBool::new(false);
+pub static IS_CORE1_INIT: AtomicBool = AtomicBool::new(false);
 
 /// Represents a partiticular CPU core (SIO_CPUID)
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
