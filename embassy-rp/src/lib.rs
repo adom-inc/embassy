@@ -718,8 +718,7 @@ unsafe fn enable_actlr_extexclall() {
 }
 
 /// Extension trait for PAC regs, adding atomic xor/bitset/bitclear writes.
-#[allow(unused)]
-trait RegExt<T: Copy> {
+pub trait RegExt<T: Copy> {
     #[allow(unused)]
     fn write_xor<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
     fn write_set<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
